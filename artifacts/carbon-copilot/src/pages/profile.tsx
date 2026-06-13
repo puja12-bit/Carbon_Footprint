@@ -58,7 +58,11 @@ export default function Profile() {
   }, [profile, form]);
 
   const onSubmit = (values: z.infer<typeof profileSchema>) => {
-    updateMutation.mutate({ data: values }, {
+    const payload = {
+      ...values,
+      monthlyBudget: values.monthlyBudget ?? undefined,
+    };
+    updateMutation.mutate({ data: payload }, {
       onSuccess: () => {
         toast({ title: "Profile updated successfully" });
         queryClient.invalidateQueries({ queryKey: getGetProfileQueryKey() });
