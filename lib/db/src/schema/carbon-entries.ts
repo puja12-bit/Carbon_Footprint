@@ -1,18 +1,25 @@
-import { pgTable, text, serial, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, real, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod/v4";
+import type { z } from "zod/v4";
 
-export const carbonEntriesTable = pgTable("carbon_entries", {
-  id: serial("id").primaryKey(),
-  action: text("action").notNull(),
-  category: text("category").notNull(),
-  co2Kg: real("co2_kg").notNull(),
-  explanation: text("explanation"),
-  alternatives: text("alternatives"),
-  chosenAlternative: text("chosen_alternative"),
-  savedCo2Kg: real("saved_co2_kg"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const carbonEntriesTable = pgTable(
+  "carbon_entries",
+  {
+    id: serial("id").primaryKey(),
+    action: text("action").notNull(),
+    category: text("category").notNull(),
+    co2Kg: real("co2_kg").notNull(),
+    explanation: text("explanation"),
+    alternatives: text("alternatives"),
+    chosenAlternative: text("chosen_alternative"),
+    savedCo2Kg: real("saved_co2_kg"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("carbon_entries_created_at_idx").on(table.createdAt),
+    index("carbon_entries_category_idx").on(table.category),
+  ],
+);
 
 export const insertCarbonEntrySchema = createInsertSchema(carbonEntriesTable).omit({
   id: true,

@@ -1,6 +1,5 @@
-import { useGetCarbonScores, useGetScoreHistory, useGetCarbonByCategory, useGetCarbonStats, useGetRecentEntries } from "@workspace/api-client-react";
+import { useGetCarbonScores, useGetScoreHistory, useGetCarbonByCategory, useGetCarbonStats } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TreePine, BatteryCharging, Home, TrendingDown, TrendingUp, Activity } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell } from "recharts";
@@ -14,7 +13,6 @@ export default function Dashboard() {
   const { data: history, isLoading: loadingHistory } = useGetScoreHistory({ period });
   const { data: breakdown, isLoading: loadingBreakdown } = useGetCarbonByCategory();
   const { data: stats, isLoading: loadingStats } = useGetCarbonStats();
-  const { data: recent, isLoading: loadingRecent } = useGetRecentEntries({ limit: 5 });
 
   const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 

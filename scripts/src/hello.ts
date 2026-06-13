@@ -1,1 +1,2 @@
-console.log("Hello from @workspace/scripts");
+// Placeholder entry point for @workspace/scripts
+// Add utility scripts here following the pnpm-workspace skill conventions

@@ -1,5 +1,6 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
@@ -24,9 +25,28 @@ const queryClient = new QueryClient({
   },
 });
 
+const PAGE_TITLES: Record<string, string> = {
+  "/": "Live Radar — Carbon Copilot AI",
+  "/dashboard": "Dashboard — Carbon Copilot AI",
+  "/history": "History — Carbon Copilot AI",
+  "/achievements": "Achievements — Carbon Copilot AI",
+  "/profile": "Profile — Carbon Copilot AI",
+};
+
+function PageTitleManager() {
+  const [location] = useLocation();
+
+  useEffect(() => {
+    document.title = PAGE_TITLES[location] ?? "Carbon Copilot AI";
+  }, [location]);
+
+  return null;
+}
+
 function Router() {
   return (
     <Layout>
+      <PageTitleManager />
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/dashboard" component={Dashboard} />

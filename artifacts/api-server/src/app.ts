@@ -24,8 +24,18 @@ app.use(
       },
     },
     crossOriginEmbedderPolicy: false,
+    permittedCrossDomainPolicies: true,
   }),
 );
+
+// Permissions-Policy — disable unused browser features
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+  );
+  next();
+});
 
 // Security: CORS — restrict to same origin in production
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -104,7 +114,6 @@ app.use((_req: Request, res: Response) => {
 });
 
 // Global error handler — must be last and have 4 params for Express to treat as error handler
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   req.log.error({ err }, "Unhandled error");
   const status = (err as NodeJS.ErrnoException & { status?: number }).status ?? 500;

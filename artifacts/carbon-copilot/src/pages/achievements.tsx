@@ -147,7 +147,7 @@ export default function Achievements() {
                     {ach.description}
                   </p>
 
-                  {!ach.isUnlocked && ach.progress != null && ach.target != null && (
+                  {!ach.isUnlocked && ach.progress !== null && ach.progress !== undefined && ach.target !== null && ach.target !== undefined && (
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Progress</span>

@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, userProfileTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { UpdateProfileBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -34,11 +35,12 @@ router.put("/profile", async (req, res): Promise<void> => {
     return;
   }
 
-  const profile = await ensureProfile();
+  const existing = await ensureProfile();
 
   const [updated] = await db
     .update(userProfileTable)
     .set(parsed.data)
+    .where(eq(userProfileTable.id, existing.id))
     .returning();
 
   if (!updated) {
