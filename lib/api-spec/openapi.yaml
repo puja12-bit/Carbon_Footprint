@@ -3,20 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Carbon Copilot AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: carbon
+    description: Carbon estimation and history
+  - name: profile
+    description: User profile
+  - name: scores
+    description: Carbon scores and trends
+  - name: achievements
+    description: Gamification achievements
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +32,472 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /carbon/estimate:
+    post:
+      operationId: estimateCarbon
+      tags: [carbon]
+      summary: Estimate carbon footprint for a user action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarbonEstimateInput"
+      responses:
+        "200":
+          description: Carbon estimate with alternatives
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarbonEstimateResult"
+
+  /carbon/entries:
+    get:
+      operationId: listCarbonEntries
+      tags: [carbon]
+      summary: List saved carbon entries
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of carbon entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CarbonEntry"
+    post:
+      operationId: saveCarbonEntry
+      tags: [carbon]
+      summary: Save a carbon entry to history
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CarbonEntryInput"
+      responses:
+        "201":
+          description: Saved entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarbonEntry"
+
+  /carbon/entries/recent:
+    get:
+      operationId: getRecentEntries
+      tags: [carbon]
+      summary: Get recent carbon activity feed
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: Recent carbon entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CarbonEntry"
+
+  /carbon/entries/{id}:
+    get:
+      operationId: getCarbonEntry
+      tags: [carbon]
+      summary: Get a specific carbon entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Carbon entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarbonEntry"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteCarbonEntry
+      tags: [carbon]
+      summary: Delete a carbon entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /carbon/stats:
+    get:
+      operationId: getCarbonStats
+      tags: [carbon]
+      summary: Get aggregate carbon statistics
+      responses:
+        "200":
+          description: Carbon stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarbonStats"
+
+  /carbon/categories:
+    get:
+      operationId: getCarbonByCategory
+      tags: [carbon]
+      summary: Get carbon breakdown by category
+      responses:
+        "200":
+          description: Category breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategoryBreakdown"
+
+  /profile:
+    get:
+      operationId: getProfile
+      tags: [profile]
+      summary: Get user profile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+    put:
+      operationId: updateProfile
+      tags: [profile]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+
+  /scores:
+    get:
+      operationId: getCarbonScores
+      tags: [scores]
+      summary: Get current carbon scores
+      responses:
+        "200":
+          description: Carbon scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CarbonScores"
+
+  /scores/history:
+    get:
+      operationId: getScoreHistory
+      tags: [scores]
+      summary: Get score history for trend charts
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [week, month, year]
+            default: month
+      responses:
+        "200":
+          description: Score history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScoreHistoryPoint"
+
+  /achievements:
+    get:
+      operationId: getAchievements
+      tags: [achievements]
+      summary: Get user achievements and badges
+      responses:
+        "200":
+          description: Achievements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Achievement"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    CarbonEstimateInput:
+      type: object
+      required: [query]
+      properties:
+        query:
+          type: string
+          description: The user action to estimate (e.g. "fly from London to Paris")
+        category:
+          type: ["string", "null"]
+          description: Optional category hint
+
+    Alternative:
+      type: object
+      required: [label, co2Kg, reductionPercent]
+      properties:
+        label:
+          type: string
+        co2Kg:
+          type: number
+        reductionPercent:
+          type: number
+        extraTimeMinutes:
+          type: ["number", "null"]
+        moneySavedUsd:
+          type: ["number", "null"]
+        description:
+          type: ["string", "null"]
+
+    CarbonEstimateResult:
+      type: object
+      required: [action, category, co2Kg, explanation, alternatives, confidenceScore]
+      properties:
+        action:
+          type: string
+        category:
+          type: string
+        co2Kg:
+          type: number
+        explanation:
+          type: string
+        alternatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alternative"
+        confidenceScore:
+          type: number
+          description: 0-1 confidence score
+        factors:
+          type: array
+          items:
+            type: string
+          description: Key factors contributing to emissions
+
+    CarbonEntryInput:
+      type: object
+      required: [action, category, co2Kg]
+      properties:
+        action:
+          type: string
+        category:
+          type: string
+        co2Kg:
+          type: number
+        alternatives:
+          type: ["string", "null"]
+          description: JSON-encoded alternatives
+        explanation:
+          type: ["string", "null"]
+        chosenAlternative:
+          type: ["string", "null"]
+        savedCo2Kg:
+          type: ["number", "null"]
+
+    CarbonEntry:
+      type: object
+      required: [id, action, category, co2Kg, createdAt]
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+        category:
+          type: string
+        co2Kg:
+          type: number
+        explanation:
+          type: ["string", "null"]
+        alternatives:
+          type: ["string", "null"]
+        chosenAlternative:
+          type: ["string", "null"]
+        savedCo2Kg:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CarbonStats:
+      type: object
+      required: [totalCo2Kg, savedCo2Kg, totalEntries, treesEquivalent, phonesCharged, streakDays]
+      properties:
+        totalCo2Kg:
+          type: number
+        savedCo2Kg:
+          type: number
+        totalEntries:
+          type: integer
+        treesEquivalent:
+          type: number
+        phonesCharged:
+          type: number
+        homesEquivalent:
+          type: number
+        streakDays:
+          type: integer
+        moneySavedUsd:
+          type: number
+
+    CategoryBreakdown:
+      type: object
+      required: [category, co2Kg, count, percentage]
+      properties:
+        category:
+          type: string
+        co2Kg:
+          type: number
+        count:
+          type: integer
+        percentage:
+          type: number
+
+    UserProfile:
+      type: object
+      required: [id, homeCity, dietPreference, budgetSensitivity, timeSensitivity]
+      properties:
+        id:
+          type: integer
+        homeCity:
+          type: string
+        dietPreference:
+          type: string
+          enum: [vegan, vegetarian, flexitarian, omnivore]
+        hasVehicle:
+          type: boolean
+        budgetSensitivity:
+          type: string
+          enum: [low, medium, high]
+        timeSensitivity:
+          type: string
+          enum: [low, medium, high]
+        typicalCommute:
+          type: ["string", "null"]
+        monthlyBudget:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    UserProfileUpdate:
+      type: object
+      properties:
+        homeCity:
+          type: string
+        dietPreference:
+          type: string
+          enum: [vegan, vegetarian, flexitarian, omnivore]
+        hasVehicle:
+          type: boolean
+        budgetSensitivity:
+          type: string
+          enum: [low, medium, high]
+        timeSensitivity:
+          type: string
+          enum: [low, medium, high]
+        typicalCommute:
+          type: string
+        monthlyBudget:
+          type: number
+
+    CarbonScores:
+      type: object
+      required: [daily, weekly, monthly, yearly, dailyBudget]
+      properties:
+        daily:
+          type: number
+        weekly:
+          type: number
+        monthly:
+          type: number
+        yearly:
+          type: number
+        dailyBudget:
+          type: number
+        weeklyChange:
+          type: number
+        monthlyChange:
+          type: number
+
+    ScoreHistoryPoint:
+      type: object
+      required: [date, co2Kg]
+      properties:
+        date:
+          type: string
+        co2Kg:
+          type: number
+        savedCo2Kg:
+          type: number
+
+    Achievement:
+      type: object
+      required: [id, title, description, icon, unlockedAt, isUnlocked]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        isUnlocked:
+          type: boolean
+        unlockedAt:
+          type: ["string", "null"]
+          format: date-time
+        progress:
+          type: ["number", "null"]
+        target:
+          type: ["number", "null"]

@@ -1,0 +1,601 @@
+# MASTER PROMPT
+
+Build a production-quality full-stack application called **Carbon Copilot AI**.
+
+## Core Vision
+
+Carbon Copilot is an intelligent assistant that estimates and explains the carbon footprint of user actions **before they happen**, instead of tracking them afterward.
+
+Whenever a user is:
+
+* typing a shopping query
+* ordering food
+* booking flights
+* booking hotels
+* ordering cabs
+* selecting delivery options
+* planning travel
+* choosing transportation
+* buying electronics
+* scheduling meetings
+* selecting cloud services
+* streaming media
+* making any digital decision
+
+the system should instantly estimate:
+
+* Estimated CO₂ emissions
+* Why that amount occurs
+* Greener alternatives
+* Money savings
+* Carbon savings
+* Confidence score
+
+The assistant should feel like GitHub Copilot but for sustainability.
+
+---
+
+# User Experience
+
+As the user types:
+
+"I want to fly from Hyderabad to Bangalore"
+
+the interface immediately shows:
+
+Estimated Carbon:
+≈ 135 kg CO₂
+
+Alternative:
+Train
+
+Estimated Carbon:
+≈ 18 kg CO₂
+
+Reduction:
+87%
+
+Extra travel time:
++5 hours
+
+Estimated money saved:
+₹1,500
+
+---
+
+When user adds food:
+
+"Large beef burger"
+
+Display:
+
+Estimated Carbon:
+≈ 6.5 kg CO₂
+
+Alternatives:
+
+Chicken burger
+2.2 kg
+
+Veg burger
+0.9 kg
+
+Plant burger
+0.6 kg
+
+---
+
+When shopping:
+
+Gaming Laptop
+
+Estimated production carbon:
+≈ 350 kg CO₂
+
+Refurbished equivalent:
+≈ 70 kg CO₂
+
+Reduction:
+80%
+
+---
+
+For ride booking:
+
+Uber SUV
+
+15 kg CO₂
+
+Metro
+
+1.8 kg CO₂
+
+Bike
+
+0 kg CO₂
+
+---
+
+For grocery delivery:
+
+Express delivery
+
+Higher emissions
+
+Scheduled delivery
+
+35% lower emissions
+
+---
+
+## Universal Action Analyzer
+
+The application should support modular plugins:
+
+Transportation
+
+Flights
+
+Trains
+
+Bus
+
+Metro
+
+Taxi
+
+Bike
+
+Walking
+
+Food
+
+Shopping
+
+Electronics
+
+Fashion
+
+Groceries
+
+Streaming
+
+Energy
+
+Cloud usage
+
+Package delivery
+
+Hotel booking
+
+Video meetings
+
+Future plugins should be easy to add.
+
+---
+
+# AI Layer
+
+Implement an AI recommendation engine.
+
+It should explain:
+
+Why emissions are high
+
+Which factors contribute
+
+What single change gives maximum reduction
+
+Provide explanations in simple language.
+
+Example:
+
+"Flying emits more because takeoff consumes significant fuel. Taking rail for this distance reduces emissions dramatically."
+
+---
+
+# Personalization
+
+Create a user profile including:
+
+Home city
+
+Lifestyle
+
+Diet preference
+
+Vehicle ownership
+
+Typical commute
+
+Monthly travel
+
+Shopping habits
+
+Budget sensitivity
+
+Time sensitivity
+
+Health preference
+
+Based on history, personalize suggestions.
+
+Example:
+
+If user always chooses speed over price:
+
+Recommend flights only when train duration exceeds threshold.
+
+---
+
+# Carbon Score
+
+Maintain:
+
+Daily score
+
+Weekly score
+
+Monthly score
+
+Yearly score
+
+Trend charts
+
+Achievements
+
+Badges
+
+Carbon saved
+
+Money saved
+
+Equivalent trees planted
+
+Equivalent phones charged
+
+Equivalent homes powered
+
+---
+
+# Browser Assistant Simulation
+
+Build an interface that simulates browser integration.
+
+Whenever text is entered into any search box inside the app, show an overlay panel with:
+
+Carbon estimate
+
+Alternative suggestions
+
+Savings
+
+AI explanation
+
+This architecture should be extensible for future Chrome Extension implementation.
+
+---
+
+# Technical Stack
+
+Frontend
+
+Next.js latest
+
+React
+
+TypeScript
+
+TailwindCSS
+
+shadcn/ui
+
+Framer Motion
+
+Accessibility-first
+
+Dark mode
+
+Mobile responsive
+
+WCAG compliant
+
+Keyboard navigation
+
+Screen reader friendly
+
+---
+
+Backend
+
+Node.js
+
+NestJS or Express
+
+REST API
+
+TypeScript
+
+Clean architecture
+
+Dependency injection
+
+Validation layer
+
+Error handling
+
+Logging
+
+---
+
+Database
+
+PostgreSQL
+
+Prisma ORM
+
+Migration scripts
+
+Seed scripts
+
+Indexes
+
+---
+
+Caching
+
+Redis
+
+---
+
+Authentication
+
+JWT
+
+OAuth support
+
+Refresh tokens
+
+Secure cookies
+
+Password hashing
+
+Rate limiting
+
+CSRF protection
+
+Helmet
+
+CORS
+
+Input sanitization
+
+---
+
+AI
+
+Provider abstraction layer
+
+OpenAI compatible interface
+
+Prompt templates
+
+Streaming responses
+
+Retry logic
+
+Structured outputs
+
+---
+
+Carbon Engine
+
+Rule engine
+
+Emission factor database
+
+Versioned datasets
+
+Source attribution
+
+Confidence calculation
+
+Plugin architecture
+
+Unit conversions
+
+---
+
+Performance
+
+Lazy loading
+
+Code splitting
+
+Memoization
+
+Pagination
+
+Debouncing
+
+Optimized queries
+
+Compression
+
+Image optimization
+
+SSR where appropriate
+
+---
+
+Testing
+
+Unit tests
+
+Integration tests
+
+E2E tests
+
+Accessibility tests
+
+API tests
+
+Target >90% coverage
+
+---
+
+Code Quality
+
+Feature-based folder structure
+
+SOLID principles
+
+Reusable hooks
+
+Reusable components
+
+Strict typing
+
+No duplicated logic
+
+Linting
+
+Formatting
+
+Documentation
+
+Meaningful comments
+
+Clean commit-ready architecture
+
+---
+
+Security
+
+OWASP practices
+
+No secrets in code
+
+Environment variables
+
+Parameterized queries
+
+Input validation
+
+Output encoding
+
+Secure authentication
+
+Audit logging
+
+Rate limiting
+
+Dependency checks
+
+XSS prevention
+
+SQL injection prevention
+
+---
+
+Accessibility
+
+ARIA labels
+
+Keyboard-only operation
+
+Focus management
+
+High contrast support
+
+Responsive typography
+
+Semantic HTML
+
+Screen reader compatibility
+
+Reduced motion option
+
+---
+
+Efficiency
+
+Fast rendering
+
+Minimal rerenders
+
+Optimized API calls
+
+Efficient state management
+
+Virtualization for long lists
+
+Server-side pagination
+
+---
+
+Extra Innovation
+
+Implement a "Live Carbon Radar".
+
+As the user types in any input field, detect intent and immediately estimate emissions before submission.
+
+The estimate updates continuously with debouncing.
+
+Display:
+
+Current action
+
+Estimated CO₂
+
+Best alternative
+
+Potential reduction
+
+Money saved
+
+Confidence level
+
+---
+
+Bonus Features
+
+Carbon budget per month
+
+Family accounts
+
+Team leaderboard
+
+Gamification
+
+Streaks
+
+Achievements
+
+Offline support
+
+PWA
+
+Voice input
+
+Voice explanations
+
+Regional emission factors
+
+Multi-language support
+
+Explainability mode
+
+API documentation
+
+Admin dashboard
+
+Analytics dashboard
+
+CSV export
+
+Privacy-first design
+
+---
+
+Deliver production-grade code with enterprise architecture, excellent developer experience, comprehensive tests, maintainability, scalability, accessibility, and security.
