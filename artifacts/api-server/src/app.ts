@@ -34,6 +34,12 @@ app.use((_req, res, next) => {
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
   );
+  // Referrer-Policy — limit referrer info sent to external sites
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Cross-Origin-Resource-Policy — restrict cross-origin reads
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+  // Cross-Origin-Opener-Policy — prevent cross-origin window attacks
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   next();
 });
 

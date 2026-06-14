@@ -143,6 +143,55 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.body).toHaveProperty("co2Kg");
   });
 
+  it("handles full sentence query correctly", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "I am planning to fly from New York to London next week" });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("flight");
+  });
+
+  it("handles driving sentence query correctly", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "I drive to work every day, about 20 miles each way" });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("transport");
+  });
+
+  it("handles train sentence query correctly", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "planning to take the train from London to Edinburgh" });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("transport");
+  });
+
+  it("handles cycling sentence query correctly", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "cycling to work every morning, about 5 miles" });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("transport");
+  });
+
+  it("handles food sentence query correctly", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "ordering food delivery for dinner tonight" });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("food");
+  });
+
+  it("echoes the full sentence in the action field", async () => {
+    const query = "I want to fly from Paris to Tokyo next summer";
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query });
+    expect(res.status).toBe(200);
+    expect(res.body.action).toBe(query);
+  });
+
   it("returns 400 when query is missing", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
@@ -185,6 +234,24 @@ describe("POST /api/carbon/estimate", () => {
       expect(alt.reductionPercent).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("confidenceScore is between 0 and 1", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "fly from London to New York" });
+    expect(res.status).toBe(200);
+    expect(res.body.confidenceScore).toBeGreaterThan(0);
+    expect(res.body.confidenceScore).toBeLessThanOrEqual(1);
+  });
+
+  it("factors array is non-empty", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "beef burger for lunch" });
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.factors)).toBe(true);
+    expect(res.body.factors.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── Carbon entries (DB-backed) ───────────────────────────────────────────────
@@ -210,6 +277,11 @@ describe("GET /api/carbon/entries", () => {
     const res = await request(app).get("/api/carbon/entries?limit=abc");
     expect(res.status).toBe(400);
   });
+
+  it("returns 400 for negative offset", async () => {
+    const res = await request(app).get("/api/carbon/entries?offset=-1");
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("GET /api/carbon/entries/recent", () => {
@@ -222,6 +294,11 @@ describe("GET /api/carbon/entries/recent", () => {
   it("accepts limit param", async () => {
     const res = await request(app).get("/api/carbon/entries/recent?limit=5");
     expect(res.status).toBe(200);
+  });
+
+  it("returns 400 for non-numeric limit", async () => {
+    const res = await request(app).get("/api/carbon/entries/recent?limit=abc");
+    expect(res.status).toBe(400);
   });
 });
 
@@ -237,6 +314,13 @@ describe("POST /api/carbon/entries", () => {
     const res = await request(app)
       .post("/api/carbon/entries")
       .send({ action: "test" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when co2Kg is missing", async () => {
+    const res = await request(app)
+      .post("/api/carbon/entries")
+      .send({ action: "walk to shop", category: "Transport" });
     expect(res.status).toBe(400);
   });
 });
@@ -276,6 +360,13 @@ describe("GET /api/carbon/stats", () => {
     expect(res.body).toHaveProperty("treesEquivalent");
     expect(res.body).toHaveProperty("phonesCharged");
     expect(res.body).toHaveProperty("moneySavedUsd");
+  });
+
+  it("stats values are numeric", async () => {
+    const res = await request(app).get("/api/carbon/stats");
+    expect(res.status).toBe(200);
+    expect(typeof res.body.totalCo2Kg).toBe("number");
+    expect(typeof res.body.streakDays).toBe("number");
   });
 });
 
@@ -354,6 +445,13 @@ describe("PUT /api/profile", () => {
       .send({ dietPreference: "carnivore" });
     expect(res.status).toBe(400);
   });
+
+  it("returns 400 for invalid budget sensitivity", async () => {
+    const res = await request(app)
+      .put("/api/profile")
+      .send({ budgetSensitivity: "extreme" });
+    expect(res.status).toBe(400);
+  });
 });
 
 // ─── Achievements ─────────────────────────────────────────────────────────────
@@ -408,6 +506,22 @@ describe("Security headers", () => {
     const res = await request(app).get("/api/healthz");
     expect(res.headers["ratelimit"]).toBeDefined();
   });
+
+  it("includes Referrer-Policy header", async () => {
+    const res = await request(app).get("/api/healthz");
+    expect(res.headers["referrer-policy"]).toBeDefined();
+    expect(res.headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  });
+
+  it("includes Cross-Origin-Resource-Policy header", async () => {
+    const res = await request(app).get("/api/healthz");
+    expect(res.headers["cross-origin-resource-policy"]).toBeDefined();
+  });
+
+  it("includes Cross-Origin-Opener-Policy header", async () => {
+    const res = await request(app).get("/api/healthz");
+    expect(res.headers["cross-origin-opener-policy"]).toBeDefined();
+  });
 });
 
 // ─── Error handling ────────────────────────────────────────────────────────────
@@ -429,5 +543,11 @@ describe("Error handling", () => {
       .post("/api/carbon/estimate")
       .send({ query: "a".repeat(200), extra: "x".repeat(1024 * 101) });
     expect([400, 413]).toContain(res.status);
+  });
+
+  it("returns JSON error body for 404", async () => {
+    const res = await request(app).get("/api/totally-unknown-route");
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
   });
 });

@@ -11,8 +11,8 @@ import { useQueryClient } from "@tanstack/react-query";
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const debouncedQuery = useDebounce(query, 500);
-  const estimateMutation = useEstimateCarbon();
+  const debouncedQuery = useDebounce(query, 1200);
+  const { mutate: estimateMutate, data: estimateData, isPending: estimateIsPending, isError: estimateIsError, reset: estimateReset } = useEstimateCarbon();
   const saveMutation = useSaveCarbonEntry();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -20,30 +20,31 @@ export default function Home() {
   const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (debouncedQuery.trim().length > 3) {
-      estimateMutation.mutate({ data: { query: debouncedQuery } });
+    const trimmed = debouncedQuery.trim();
+    const hasMultipleWords = trimmed.includes(" ");
+    const isLongEnough = trimmed.length >= 10;
+    if (hasMultipleWords || isLongEnough) {
+      estimateMutate({ data: { query: trimmed } });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedQuery]);
+  }, [debouncedQuery, estimateMutate]);
 
-  // Announce results to screen readers when they arrive
   useEffect(() => {
-    if (estimateMutation.data && !estimateMutation.isPending) {
+    if (estimateData && !estimateIsPending) {
       resultsRef.current?.focus();
     }
-  }, [estimateMutation.data, estimateMutation.isPending]);
+  }, [estimateData, estimateIsPending]);
 
   const handleSave = () => {
-    if (!estimateMutation.data) return;
+    if (!estimateData) return;
 
     saveMutation.mutate(
       {
         data: {
-          action: estimateMutation.data.action,
-          category: estimateMutation.data.category,
-          co2Kg: estimateMutation.data.co2Kg,
-          alternatives: JSON.stringify(estimateMutation.data.alternatives),
-          explanation: estimateMutation.data.explanation,
+          action: estimateData.action,
+          category: estimateData.category,
+          co2Kg: estimateData.co2Kg,
+          alternatives: JSON.stringify(estimateData.alternatives),
+          explanation: estimateData.explanation,
         },
       },
       {
@@ -56,7 +57,7 @@ export default function Home() {
           queryClient.invalidateQueries({ queryKey: getGetRecentEntriesQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetCarbonStatsQueryKey() });
           setQuery("");
-          estimateMutation.reset();
+          estimateReset();
           inputRef.current?.focus();
         },
       },
@@ -65,11 +66,11 @@ export default function Home() {
 
   const handleClear = () => {
     setQuery("");
-    estimateMutation.reset();
+    estimateReset();
     inputRef.current?.focus();
   };
 
-  const hasResult = estimateMutation.data && !estimateMutation.isPending;
+  const hasResult = estimateData && !estimateIsPending;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[80vh] gap-8">
@@ -85,8 +86,8 @@ export default function Home() {
           What are you planning?
         </h1>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto" id="radar-description">
-          Type any action to instantly see its carbon footprint and discover greener alternatives
-          before you commit.
+          Type a full sentence or phrase to instantly see its carbon footprint and discover greener
+          alternatives before you commit.
         </p>
       </div>
 
@@ -100,16 +101,16 @@ export default function Home() {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g. Flight from London to Paris, driving 20 miles..."
+            placeholder="e.g. Flight from London to Paris, driving 20 miles to work..."
             className="h-20 text-2xl px-8 rounded-2xl bg-card border-2 border-border focus-visible:border-primary shadow-xl"
             aria-label="Describe your action to estimate its carbon footprint"
             aria-describedby="radar-description"
-            aria-busy={estimateMutation.isPending}
+            aria-busy={estimateIsPending}
             data-testid="input-carbon-query"
             autoComplete="off"
             spellCheck={false}
           />
-          {estimateMutation.isPending && (
+          {estimateIsPending && (
             <div
               className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-2 text-primary"
               aria-hidden="true"
@@ -133,13 +134,13 @@ export default function Home() {
         data-testid="sr-live-region"
       >
         {hasResult
-          ? `Estimated ${estimateMutation.data.co2Kg.toFixed(1)} kg CO₂ for ${estimateMutation.data.action}. ${estimateMutation.data.alternatives.length} greener alternatives available.`
-          : estimateMutation.isPending
+          ? `Estimated ${estimateData.co2Kg.toFixed(1)} kg CO₂ for ${estimateData.action}. ${estimateData.alternatives.length} greener alternatives available.`
+          : estimateIsPending
             ? "Computing carbon estimate…"
             : ""}
       </div>
 
-      {estimateMutation.isError && (
+      {estimateIsError && (
         <div
           role="alert"
           className="w-full max-w-3xl flex items-center gap-3 p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive"
@@ -155,7 +156,7 @@ export default function Home() {
           className="w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-500"
           ref={resultsRef}
           tabIndex={-1}
-          aria-label={`Carbon estimate result for ${estimateMutation.data.action}`}
+          aria-label={`Carbon estimate result for ${estimateData.action}`}
           data-testid="carbon-estimate-result"
         >
           <Card className="border-2 border-primary/20 bg-card/50 backdrop-blur-sm overflow-hidden">
@@ -163,26 +164,26 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Badge variant="secondary" className="capitalize" data-testid="badge-category">
-                    {estimateMutation.data.category}
+                    {estimateData.category}
                   </Badge>
                   <span
                     className="text-xs text-muted-foreground flex items-center gap-1"
-                    aria-label={`Confidence: ${Math.round(estimateMutation.data.confidenceScore * 100)} percent`}
+                    aria-label={`Confidence: ${Math.round(estimateData.confidenceScore * 100)} percent`}
                   >
                     <ShieldCheck className="w-3 h-3 text-primary" aria-hidden="true" />
-                    {Math.round(estimateMutation.data.confidenceScore * 100)}% Confidence
+                    {Math.round(estimateData.confidenceScore * 100)}% Confidence
                   </span>
                 </div>
                 <h2 className="text-2xl font-semibold" data-testid="text-action">
-                  {estimateMutation.data.action}
+                  {estimateData.action}
                 </h2>
               </div>
-              <div className="text-right" aria-label={`${estimateMutation.data.co2Kg.toFixed(1)} kilograms of CO2`}>
+              <div className="text-right" aria-label={`${estimateData.co2Kg.toFixed(1)} kilograms of CO2`}>
                 <div
                   className="text-4xl font-mono font-bold text-primary tabular-nums"
                   data-testid="text-co2-value"
                 >
-                  {estimateMutation.data.co2Kg.toFixed(1)}{" "}
+                  {estimateData.co2Kg.toFixed(1)}{" "}
                   <span className="text-xl text-muted-foreground font-sans">kg CO₂</span>
                 </div>
               </div>
@@ -196,17 +197,17 @@ export default function Home() {
               >
                 <Info className="w-5 h-5 text-primary shrink-0" aria-hidden="true" />
                 <p className="text-muted-foreground leading-relaxed" data-testid="text-explanation">
-                  {estimateMutation.data.explanation}
+                  {estimateData.explanation}
                 </p>
               </div>
 
-              {estimateMutation.data.factors && estimateMutation.data.factors.length > 0 && (
+              {estimateData.factors && estimateData.factors.length > 0 && (
                 <section aria-label="Key contributing factors">
                   <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground mb-3">
                     Key Factors
                   </h3>
                   <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
-                    {estimateMutation.data.factors.map((f, i) => (
+                    {estimateData.factors.map((f, i) => (
                       <li key={i}>
                         <Badge variant="outline" className="bg-background" data-testid={`badge-factor-${i}`}>
                           {f}
@@ -217,13 +218,13 @@ export default function Home() {
                 </section>
               )}
 
-              {estimateMutation.data.alternatives && estimateMutation.data.alternatives.length > 0 && (
+              {estimateData.alternatives && estimateData.alternatives.length > 0 && (
                 <section aria-label="Greener alternatives">
                   <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-3">
                     <Zap className="w-4 h-4 text-primary" aria-hidden="true" /> Greener Alternatives
                   </h3>
                   <ul className="space-y-3 list-none p-0 m-0">
-                    {estimateMutation.data.alternatives.map((alt, i) => (
+                    {estimateData.alternatives.map((alt, i) => (
                       <li
                         key={i}
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors gap-4"
@@ -271,6 +272,7 @@ export default function Home() {
                             </div>
                           )}
                           <Button
+                            type="button"
                             variant="ghost"
                             size="icon"
                             className="shrink-0 rounded-full"
@@ -289,6 +291,7 @@ export default function Home() {
 
             <CardFooter className="bg-muted/30 p-4 border-t border-border flex justify-end gap-3">
               <Button
+                type="button"
                 variant="outline"
                 onClick={handleClear}
                 data-testid="button-clear"
@@ -297,6 +300,7 @@ export default function Home() {
                 Clear
               </Button>
               <Button
+                type="button"
                 onClick={handleSave}
                 disabled={saveMutation.isPending}
                 className="gap-2"
