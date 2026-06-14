@@ -2,40 +2,73 @@ import { Router, type IRouter } from "express";
 import { db, carbonEntriesTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { GetScoreHistoryQueryParams } from "@workspace/api-zod";
+import { DEFAULT_DAILY_BUDGET_KG } from "../lib/carbon-utils.js";
 
 const router: IRouter = Router();
 
+/** Number of days included in each history period. */
+const PERIOD_DAYS: Record<string, number> = {
+  week: 7,
+  month: 30,
+  year: 365,
+};
+
+/** Default history period when none is specified. */
+const DEFAULT_PERIOD = "month";
+
 router.get("/scores", async (_req, res): Promise<void> => {
-  const rows = await db.select().from(carbonEntriesTable).orderBy(desc(carbonEntriesTable.createdAt));
+  const rows = await db
+    .select()
+    .from(carbonEntriesTable)
+    .orderBy(desc(carbonEntriesTable.createdAt));
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   const startOfWeek = new Date(startOfDay);
   startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
+
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfYear = new Date(now.getFullYear(), 0, 1);
+
   const lastWeekStart = new Date(startOfWeek);
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  lastWeekStart.setDate(lastWeekStart.getDate() - PERIOD_DAYS.week);
+
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const daily = rows.filter((r) => r.createdAt >= startOfDay).reduce((s, r) => s + r.co2Kg, 0);
-  const weekly = rows.filter((r) => r.createdAt >= startOfWeek).reduce((s, r) => s + r.co2Kg, 0);
-  const monthly = rows.filter((r) => r.createdAt >= startOfMonth).reduce((s, r) => s + r.co2Kg, 0);
-  const yearly = rows.filter((r) => r.createdAt >= startOfYear).reduce((s, r) => s + r.co2Kg, 0);
+  const sumFrom = (from: Date): number =>
+    rows.filter((r) => r.createdAt >= from).reduce((s, r) => s + r.co2Kg, 0);
 
-  const lastWeek = rows.filter((r) => r.createdAt >= lastWeekStart && r.createdAt < startOfWeek).reduce((s, r) => s + r.co2Kg, 0);
-  const lastMonth = rows.filter((r) => r.createdAt >= lastMonthStart && r.createdAt < lastMonthEnd).reduce((s, r) => s + r.co2Kg, 0);
+  const daily = sumFrom(startOfDay);
+  const weekly = sumFrom(startOfWeek);
+  const monthly = sumFrom(startOfMonth);
+  const yearly = sumFrom(startOfYear);
 
-  const weeklyChange = lastWeek > 0 ? parseFloat(((weekly - lastWeek) / lastWeek * 100).toFixed(1)) : 0;
-  const monthlyChange = lastMonth > 0 ? parseFloat(((monthly - lastMonth) / lastMonth * 100).toFixed(1)) : 0;
+  const lastWeek = rows
+    .filter((r) => r.createdAt >= lastWeekStart && r.createdAt < startOfWeek)
+    .reduce((s, r) => s + r.co2Kg, 0);
+
+  const lastMonth = rows
+    .filter((r) => r.createdAt >= lastMonthStart && r.createdAt < lastMonthEnd)
+    .reduce((s, r) => s + r.co2Kg, 0);
+
+  const weeklyChange =
+    lastWeek > 0
+      ? parseFloat((((weekly - lastWeek) / lastWeek) * 100).toFixed(1))
+      : 0;
+
+  const monthlyChange =
+    lastMonth > 0
+      ? parseFloat((((monthly - lastMonth) / lastMonth) * 100).toFixed(1))
+      : 0;
 
   res.json({
     daily: parseFloat(daily.toFixed(2)),
     weekly: parseFloat(weekly.toFixed(2)),
     monthly: parseFloat(monthly.toFixed(2)),
     yearly: parseFloat(yearly.toFixed(2)),
-    dailyBudget: 10,
+    dailyBudget: DEFAULT_DAILY_BUDGET_KG,
     weeklyChange,
     monthlyChange,
   });
@@ -48,11 +81,9 @@ router.get("/scores/history", async (req, res): Promise<void> => {
     return;
   }
 
-  const period = params.data.period ?? "month";
+  const period = params.data.period ?? DEFAULT_PERIOD;
+  const days = PERIOD_DAYS[period] ?? PERIOD_DAYS[DEFAULT_PERIOD];
   const now = new Date();
-  let days = 30;
-  if (period === "week") days = 7;
-  if (period === "year") days = 365;
 
   const startDate = new Date(now);
   startDate.setDate(now.getDate() - days);
@@ -64,10 +95,8 @@ router.get("/scores/history", async (req, res): Promise<void> => {
 
   const filtered = rows.filter((r) => r.createdAt >= startDate);
 
-  // Group by date
+  // Pre-fill all dates in the period with 0 to ensure continuity on the chart
   const byDate: Record<string, { co2Kg: number; savedCo2Kg: number }> = {};
-
-  // Pre-fill all dates with 0
   for (let i = 0; i < days; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);

@@ -7,17 +7,17 @@
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
-    "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix"
+    "lint": "eslint --config eslint.config.mjs . --max-warnings 0",
+    "lint:fix": "eslint --config eslint.config.mjs . --fix"
   },
   "private": true,
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",
     "eslint": "^10.5.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.8.3",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.61.0",
     "vitest": "^4.1.8"
-  },
-  "type": "module"
+  }
 }

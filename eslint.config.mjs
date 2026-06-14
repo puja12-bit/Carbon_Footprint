@@ -1,45 +1,58 @@
-import tsParser from "@typescript-eslint/parser";
-import tsPlugin from "@typescript-eslint/eslint-plugin";
+import tseslint from "typescript-eslint";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
 
-export default [
+export default tseslint.config(
+  // ── Ignored paths ────────────────────────────────────────────────────────
   {
     ignores: [
       "**/dist/**",
       "**/node_modules/**",
       "**/*.js",
       "**/*.mjs",
-      "**/lib/*/dist/**",
-      // shadcn/ui generated components — not hand-written code
+      "**/*.cjs",
+      "**/coverage/**",
+      "**/.tsbuildinfo",
+      // shadcn/ui auto-generated components
       "**/components/ui/**",
       "**/hooks/use-toast.ts",
-      // orval-generated files
+      // Orval-generated API client files
       "**/src/generated/**",
+      "**/src/.generated/**",
     ],
   },
+
+  // ── All TypeScript source files ───────────────────────────────────────────
   {
     files: ["**/*.ts", "**/*.tsx"],
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        ecmaVersion: 2022,
-        sourceType: "module",
-      },
-    },
+    extends: [...tseslint.configs.recommended],
     plugins: {
-      "@typescript-eslint": tsPlugin,
       "react-hooks": reactHooksPlugin,
     },
     rules: {
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
-      "no-console": ["error", { allow: ["warn", "error"] }],
-      "eqeqeq": ["error", "always"],
+      // Type safety
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
+      "@typescript-eslint/consistent-type-imports": [
+        "error",
+        { prefer: "type-imports" },
+      ],
+
+      // Code style
       "prefer-const": "error",
       "no-var": "error",
+      "eqeqeq": ["error", "always"],
+      "curly": ["error", "all"],
+
+      // React Hooks
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+
+      // Prevent accidental console.log in production code
+      // (use pino logger on the server; avoid console in the browser)
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
-];
+);

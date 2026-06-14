@@ -40,7 +40,7 @@ Provide 2-4 realistic lower-footprint alternatives. Be scientifically accurate a
 let _client: OpenAI | null | undefined;
 
 function getClient(): OpenAI | null {
-  if (_client !== undefined) return _client;
+  if (_client !== undefined) {return _client;}
   const key = process.env.OPENAI_API_KEY;
   _client = key ? new OpenAI({ apiKey: key }) : null;
   return _client;
@@ -66,7 +66,7 @@ export async function estimateCarbonWithAI(
   query: string,
 ): Promise<EstimateResult | null> {
   const client = getClient();
-  if (!client) return null;
+  if (!client) {return null;}
 
   try {
     const response = await client.chat.completions.create({
@@ -83,7 +83,7 @@ export async function estimateCarbonWithAI(
     });
 
     const content = response.choices[0]?.message?.content;
-    if (!content) return null;
+    if (!content) {return null;}
 
     const parsed = JSON.parse(content) as Partial<EstimateResult>;
 
@@ -108,10 +108,10 @@ export async function estimateCarbonWithAI(
         co2Kg: Number(alt.co2Kg ?? 0),
         reductionPercent: Number(alt.reductionPercent ?? 0),
         extraTimeMinutes:
-          alt.extraTimeMinutes != null ? Number(alt.extraTimeMinutes) : null,
+          alt.extraTimeMinutes !== null ? Number(alt.extraTimeMinutes) : null,
         moneySavedUsd:
-          alt.moneySavedUsd != null ? Number(alt.moneySavedUsd) : null,
-        description: alt.description != null ? String(alt.description) : null,
+          alt.moneySavedUsd !== null ? Number(alt.moneySavedUsd) : null,
+        description: alt.description !== null ? String(alt.description) : null,
       })),
       confidenceScore: clampConfidence(parsed.confidenceScore),
       factors: (parsed.factors as string[]).filter(

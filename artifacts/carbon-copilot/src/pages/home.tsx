@@ -35,7 +35,7 @@ export default function Home() {
   }, [estimateData, estimateIsPending]);
 
   const handleSave = () => {
-    if (!estimateData) return;
+    if (!estimateData) {return;}
 
     saveMutation.mutate(
       {
@@ -208,7 +208,7 @@ export default function Home() {
                   </h3>
                   <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
                     {estimateData.factors.map((f, i) => (
-                      <li key={i}>
+                      <li key={f}>
                         <Badge variant="outline" className="bg-background" data-testid={`badge-factor-${i}`}>
                           {f}
                         </Badge>
@@ -226,7 +226,7 @@ export default function Home() {
                   <ul className="space-y-3 list-none p-0 m-0">
                     {estimateData.alternatives.map((alt, i) => (
                       <li
-                        key={i}
+                        key={alt.label}
                         className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/50 transition-colors gap-4"
                         data-testid={`card-alternative-${i}`}
                       >

@@ -7,7 +7,7 @@ const router: IRouter = Router();
 
 async function ensureProfile() {
   const [existing] = await db.select().from(userProfileTable).limit(1);
-  if (existing) return existing;
+  if (existing) {return existing;}
 
   const [created] = await db
     .insert(userProfileTable)
