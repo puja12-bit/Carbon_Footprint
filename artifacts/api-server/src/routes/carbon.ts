@@ -12,6 +12,84 @@ import {
 import { estimateCarbonWithScore } from "../lib/carbon-engine.js";
 import { estimateCarbonWithAI } from "../lib/ai-estimator.js";
 
+// ─── Emission-equivalence constants ──────────────────────────────────────────
+
+/** Average kg of CO₂ absorbed by one tree per year (IPCC reference). */
+const KG_CO2_PER_TREE_PER_YEAR = 21.77;
+
+/** kg of CO₂ emitted charging one smartphone (EPA estimate). */
+const KG_CO2_PER_PHONE_CHARGE = 0.00822;
+
+/** Average annual CO₂ footprint of a US home in kg (EIA 2023). */
+const KG_CO2_PER_US_HOME_PER_YEAR = 7650;
+
+/** USD value of 1 kg CO₂ offset at voluntary carbon-market rates. */
+const CARBON_PRICE_USD_PER_KG = 0.15;
+
+// ─── Helper utilities ─────────────────────────────────────────────────────────
+
+/**
+ * Computes the current consecutive-day streak from a sorted list of unique
+ * ISO date strings (YYYY-MM-DD). Returns 0 when no matching dates exist.
+ */
+function computeStreak(sortedUniqueDates: string[]): number {
+  let streak = 0;
+  const today = new Date().toISOString().split("T")[0];
+  let checkDate = today;
+
+  for (let i = sortedUniqueDates.length - 1; i >= 0; i--) {
+    if (sortedUniqueDates[i] === checkDate) {
+      streak++;
+      const d = new Date(checkDate);
+      d.setDate(d.getDate() - 1);
+      checkDate = d.toISOString().split("T")[0];
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
+/**
+ * Derives sorted unique ISO date strings from carbon entry rows.
+ * Used by the streak calculator.
+ */
+function toSortedUniqueDates(rows: { createdAt: Date }[]): string[] {
+  return rows
+    .map((r) => r.createdAt.toISOString().split("T")[0])
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort();
+}
+
+/**
+ * Aggregates rows by category, returning sorted breakdown with percentages.
+ */
+function aggregateByCategory(
+  rows: { category: string; co2Kg: number }[],
+): { category: string; co2Kg: number; count: number; percentage: number }[] {
+  const byCategory: Record<string, { co2Kg: number; count: number }> = {};
+  let total = 0;
+
+  for (const row of rows) {
+    if (!byCategory[row.category]) byCategory[row.category] = { co2Kg: 0, count: 0 };
+    byCategory[row.category].co2Kg += row.co2Kg;
+    byCategory[row.category].count++;
+    total += row.co2Kg;
+  }
+
+  return Object.entries(byCategory)
+    .map(([category, { co2Kg, count }]) => ({
+      category,
+      co2Kg: parseFloat(co2Kg.toFixed(2)),
+      count,
+      percentage: total > 0 ? parseFloat(((co2Kg / total) * 100).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => b.co2Kg - a.co2Kg);
+}
+
+// ─── Router ───────────────────────────────────────────────────────────────────
+
 const router: IRouter = Router();
 
 router.post("/carbon/estimate", async (req, res): Promise<void> => {
@@ -23,7 +101,7 @@ router.post("/carbon/estimate", async (req, res): Promise<void> => {
 
   const { result, keywordScore } = estimateCarbonWithScore(parsed.data.query);
 
-  // No keyword match — try AI for a more accurate estimate
+  // No keyword match — try AI for a more accurate, context-aware estimate
   if (keywordScore === 0) {
     const aiResult = await estimateCarbonWithAI(parsed.data.query);
     if (aiResult) {
@@ -137,33 +215,16 @@ router.delete("/carbon/entries/:id", async (req, res): Promise<void> => {
 router.get("/carbon/stats", async (_req, res): Promise<void> => {
   const rows = await db.select().from(carbonEntriesTable);
 
-  const totalCo2Kg = rows.reduce((s, r) => s + r.co2Kg, 0);
-  const savedCo2Kg = rows.reduce((s, r) => s + (r.savedCo2Kg ?? 0), 0);
+  const totalCo2Kg = rows.reduce((sum, row) => sum + row.co2Kg, 0);
+  const savedCo2Kg = rows.reduce((sum, row) => sum + (row.savedCo2Kg ?? 0), 0);
   const totalEntries = rows.length;
 
-  const treesEquivalent = parseFloat((savedCo2Kg / 21.77).toFixed(2));
-  const phonesCharged = parseFloat((savedCo2Kg / 0.00822).toFixed(0));
-  const homesEquivalent = parseFloat((savedCo2Kg / 7650).toFixed(4));
-  const moneySavedUsd = parseFloat((savedCo2Kg * 0.15).toFixed(2));
+  const treesEquivalent = parseFloat((savedCo2Kg / KG_CO2_PER_TREE_PER_YEAR).toFixed(2));
+  const phonesCharged = parseFloat((savedCo2Kg / KG_CO2_PER_PHONE_CHARGE).toFixed(0));
+  const homesEquivalent = parseFloat((savedCo2Kg / KG_CO2_PER_US_HOME_PER_YEAR).toFixed(4));
+  const moneySavedUsd = parseFloat((savedCo2Kg * CARBON_PRICE_USD_PER_KG).toFixed(2));
 
-  const sortedDates = rows
-    .map((r) => r.createdAt.toISOString().split("T")[0])
-    .filter((v, i, a) => a.indexOf(v) === i)
-    .sort();
-
-  let streak = 0;
-  const today = new Date().toISOString().split("T")[0];
-  let checkDate = today;
-  for (let i = sortedDates.length - 1; i >= 0; i--) {
-    if (sortedDates[i] === checkDate) {
-      streak++;
-      const d = new Date(checkDate);
-      d.setDate(d.getDate() - 1);
-      checkDate = d.toISOString().split("T")[0];
-    } else {
-      break;
-    }
-  }
+  const streakDays = computeStreak(toSortedUniqueDates(rows));
 
   res.json({
     totalCo2Kg,
@@ -172,33 +233,14 @@ router.get("/carbon/stats", async (_req, res): Promise<void> => {
     treesEquivalent,
     phonesCharged,
     homesEquivalent,
-    streakDays: streak,
+    streakDays,
     moneySavedUsd,
   });
 });
 
 router.get("/carbon/categories", async (_req, res): Promise<void> => {
   const rows = await db.select().from(carbonEntriesTable);
-
-  const byCategory: Record<string, { co2Kg: number; count: number }> = {};
-  let total = 0;
-
-  for (const r of rows) {
-    if (!byCategory[r.category]) byCategory[r.category] = { co2Kg: 0, count: 0 };
-    byCategory[r.category].co2Kg += r.co2Kg;
-    byCategory[r.category].count++;
-    total += r.co2Kg;
-  }
-
-  const result = Object.entries(byCategory).map(([category, { co2Kg, count }]) => ({
-    category,
-    co2Kg: parseFloat(co2Kg.toFixed(2)),
-    count,
-    percentage: total > 0 ? parseFloat(((co2Kg / total) * 100).toFixed(1)) : 0,
-  }));
-
-  result.sort((a, b) => b.co2Kg - a.co2Kg);
-  res.json(result);
+  res.json(aggregateByCategory(rows));
 });
 
 export default router;

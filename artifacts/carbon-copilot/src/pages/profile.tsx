@@ -1,13 +1,37 @@
-import { useGetProfile, useUpdateProfile, getGetProfileQueryKey } from "@workspace/api-client-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  useGetProfile,
+  useUpdateProfile,
+  getGetProfileQueryKey,
+} from "@workspace/api-client-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -22,13 +46,15 @@ const profileSchema = z.object({
   monthlyBudget: z.coerce.number().optional().nullable(),
 });
 
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
 export default function Profile() {
   const { data: profile, isLoading } = useGetProfile();
   const updateMutation = useUpdateProfile();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const form = useForm<z.infer<typeof profileSchema>>({
+  const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       homeCity: "",
@@ -38,7 +64,7 @@ export default function Profile() {
       timeSensitivity: "medium",
       typicalCommute: "",
       monthlyBudget: null,
-    }
+    },
   });
 
   useEffect(() => {
@@ -55,37 +81,57 @@ export default function Profile() {
     }
   }, [profile, form]);
 
-  const onSubmit = (values: z.infer<typeof profileSchema>) => {
+  const onSubmit = (values: ProfileFormValues) => {
     const payload = {
       ...values,
       monthlyBudget: values.monthlyBudget ?? undefined,
     };
-    updateMutation.mutate({ data: payload }, {
-      onSuccess: () => {
-        toast({ title: "Profile updated successfully" });
-        queryClient.invalidateQueries({ queryKey: getGetProfileQueryKey() });
-      }
-    });
+    updateMutation.mutate(
+      { data: payload },
+      {
+        onSuccess: () => {
+          toast({ title: "Profile updated successfully" });
+          queryClient.invalidateQueries({ queryKey: getGetProfileQueryKey() });
+        },
+      },
+    );
   };
 
-  if (isLoading) return <div className="p-8">Loading profile...</div>;
+  if (isLoading) {
+    return (
+      <div className="p-8" role="status" aria-label="Loading profile settings">
+        <span className="sr-only">Loading profile…</span>
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-1/3" />
+          <div className="h-64 bg-muted rounded" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Profile Settings</h1>
-        <p className="text-muted-foreground">Personalize Copilot to give you better tailored recommendations.</p>
+        <p className="text-muted-foreground">
+          Personalize Copilot to give you better tailored recommendations.
+        </p>
       </div>
 
       <Card className="bg-card">
         <CardHeader>
           <CardTitle>Preferences</CardTitle>
-          <CardDescription>We use these details to accurately estimate alternatives.</CardDescription>
+          <CardDescription>
+            We use these details to accurately estimate alternatives.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-6"
+              aria-label="Profile preferences form"
+            >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -109,7 +155,7 @@ export default function Profile() {
                       <FormLabel>Diet Preference</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Select diet preference">
                             <SelectValue placeholder="Select diet" />
                           </SelectTrigger>
                         </FormControl>
@@ -133,12 +179,12 @@ export default function Profile() {
                       <FormLabel>Budget Sensitivity</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Select budget sensitivity">
                             <SelectValue placeholder="Select sensitivity" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="low">Low (Cost doesn't matter)</SelectItem>
+                          <SelectItem value="low">Low (Cost doesn&apos;t matter)</SelectItem>
                           <SelectItem value="medium">Medium (Balanced)</SelectItem>
                           <SelectItem value="high">High (Cost is critical)</SelectItem>
                         </SelectContent>
@@ -156,12 +202,12 @@ export default function Profile() {
                       <FormLabel>Time Sensitivity</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger aria-label="Select time sensitivity">
                             <SelectValue placeholder="Select sensitivity" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="low">Low (Time doesn't matter)</SelectItem>
+                          <SelectItem value="low">Low (Time doesn&apos;t matter)</SelectItem>
                           <SelectItem value="medium">Medium (Balanced)</SelectItem>
                           <SelectItem value="high">High (Time is critical)</SelectItem>
                         </SelectContent>
@@ -178,9 +224,17 @@ export default function Profile() {
                     <FormItem>
                       <FormLabel>Monthly Carbon Budget (kg CO₂)</FormLabel>
                       <FormControl>
-                        <Input type="number" placeholder="Optional limit" {...field} value={field.value ?? ""} />
+                        <Input
+                          type="number"
+                          placeholder="Optional limit"
+                          {...field}
+                          value={field.value ?? ""}
+                          aria-describedby="monthly-budget-desc"
+                        />
                       </FormControl>
-                      <FormDescription>Set a goal to keep emissions under</FormDescription>
+                      <FormDescription id="monthly-budget-desc">
+                        Set a goal to keep emissions under
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -193,7 +247,11 @@ export default function Profile() {
                     <FormItem>
                       <FormLabel>Typical Commute</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. 10 miles driving" {...field} value={field.value ?? ""} />
+                        <Input
+                          placeholder="e.g. 10 miles driving"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -207,22 +265,31 @@ export default function Profile() {
                 render={({ field }) => (
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
-                      <FormLabel className="text-base">Personal Vehicle</FormLabel>
-                      <FormDescription>
-                        Do you own or lease a car?
-                      </FormDescription>
+                      <FormLabel className="text-base" htmlFor="has-vehicle-switch">
+                        Personal Vehicle
+                      </FormLabel>
+                      <FormDescription>Do you own or lease a car?</FormDescription>
                     </div>
                     <FormControl>
                       <Switch
+                        id="has-vehicle-switch"
                         checked={field.value}
                         onCheckedChange={field.onChange}
+                        aria-label="Do you own or lease a personal vehicle?"
                       />
                     </FormControl>
                   </FormItem>
                 )}
               />
 
-              <Button type="submit" disabled={updateMutation.isPending} className="w-full sm:w-auto">
+              <Button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className="w-full sm:w-auto"
+                aria-label={
+                  updateMutation.isPending ? "Saving preferences…" : "Save preferences"
+                }
+              >
                 {updateMutation.isPending ? "Saving..." : "Save Preferences"}
               </Button>
             </form>

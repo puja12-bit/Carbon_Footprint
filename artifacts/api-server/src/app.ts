@@ -1,14 +1,20 @@
-import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import express, {
+  type Express,
+  type Request,
+  type Response,
+  type NextFunction,
+} from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import pinoHttp from "pino-http";
-import router from "./routes";
-import { logger } from "./lib/logger";
+import router from "./routes/index.js";
+import { logger } from "./lib/logger.js";
 
 const app: Express = express();
 
-// Security: HTTP headers hardening
+// ─── Security: HTTP headers ───────────────────────────────────────────────────
+
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -24,48 +30,58 @@ app.use(
       },
     },
     crossOriginEmbedderPolicy: false,
-    permittedCrossDomainPolicies: true,
+    // Explicitly deny cross-domain policy files (Flash/PDF)
+    permittedCrossDomainPolicies: { permittedPolicies: "none" },
   }),
 );
 
-// Permissions-Policy — disable unused browser features
-app.use((_req, res, next) => {
+// Additional headers not covered by helmet defaults
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  // Limit referrer info sent to external sites
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Prevent cross-origin reads of this API's responses
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+  // Isolate the browsing context to prevent cross-origin window attacks
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  // Disable unused browser features that could be abused
   res.setHeader(
     "Permissions-Policy",
     "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
   );
-  // Referrer-Policy — limit referrer info sent to external sites
-  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  // Cross-Origin-Resource-Policy — restrict cross-origin reads
-  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
-  // Cross-Origin-Opener-Policy — prevent cross-origin window attacks
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   next();
 });
 
-// Security: CORS — restrict to same origin in production
+// ─── Security: CORS ───────────────────────────────────────────────────────────
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",")
   : ["*"];
 
 app.use(
   cors({
-    origin: process.env.NODE_ENV === "production"
-      ? (origin, callback) => {
-          if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
-            callback(null, true);
-          } else {
-            callback(new Error("Not allowed by CORS"));
+    origin:
+      process.env.NODE_ENV === "production"
+        ? (origin, callback) => {
+            if (
+              !origin ||
+              allowedOrigins.includes("*") ||
+              allowedOrigins.includes(origin)
+            ) {
+              callback(null, true);
+            } else {
+              callback(new Error("Not allowed by CORS"));
+            }
           }
-        }
-      : true,
+        : true,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
 );
 
-// Security: Rate limiting — global
+// ─── Security: Rate limiting ──────────────────────────────────────────────────
+
+/** Global limiter — applied to every route. */
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 300,
@@ -74,7 +90,7 @@ const globalLimiter = rateLimit({
   message: { error: "Too many requests, please try again later." },
 });
 
-// Security: Stricter rate limit for estimation endpoint (AI-like)
+/** Stricter limiter for the AI-backed estimation endpoint. */
 const estimateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 60,
@@ -85,7 +101,8 @@ const estimateLimiter = rateLimit({
 
 app.use(globalLimiter);
 
-// Logging
+// ─── Logging ──────────────────────────────────────────────────────────────────
+
 app.use(
   pinoHttp({
     logger,
@@ -94,37 +111,46 @@ app.use(
         return {
           id: req.id,
           method: req.method,
+          // Strip query strings to avoid logging sensitive params
           url: req.url?.split("?")[0],
         };
       },
       res(res) {
-        return {
-          statusCode: res.statusCode,
-        };
+        return { statusCode: res.statusCode };
       },
     },
   }),
 );
 
-// Body parsing — enforce size limits to prevent DoS
+// ─── Body parsing ─────────────────────────────────────────────────────────────
+
+// Enforce size limits to prevent denial-of-service via large payloads
 app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
-// Routes
+// ─── Routes ───────────────────────────────────────────────────────────────────
+
 app.use("/api/carbon/estimate", estimateLimiter);
 app.use("/api", router);
 
-// 404 handler — must come after all routes
+// ─── 404 handler ─────────────────────────────────────────────────────────────
+
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: "Not found" });
 });
 
-// Global error handler — must be last and have 4 params for Express to treat as error handler
+// ─── Global error handler ─────────────────────────────────────────────────────
+
+// Must have 4 parameters for Express to treat as an error handler
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   req.log.error({ err }, "Unhandled error");
-  const status = (err as NodeJS.ErrnoException & { status?: number }).status ?? 500;
+  const status =
+    (err as NodeJS.ErrnoException & { status?: number }).status ?? 500;
   res.status(status).json({
-    error: process.env.NODE_ENV === "production" ? "Internal server error" : err.message,
+    error:
+      process.env.NODE_ENV === "production"
+        ? "Internal server error"
+        : err.message,
   });
 });
 
