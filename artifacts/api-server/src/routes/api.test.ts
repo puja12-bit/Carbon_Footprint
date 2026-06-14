@@ -1,11 +1,10 @@
-import { vi, describe, it, expect } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 
-// ─── Shared mock data ────────────────────────────────────────────────────────
+// ─── Shared mock data ─────────────────────────────────────────────────────────
 
 const MOCK_ENTRY = {
   id: 1,
-  // Carbon entry fields
   action: "drive 20 miles",
   category: "Transport",
   co2Kg: 3.2,
@@ -14,7 +13,6 @@ const MOCK_ENTRY = {
   alternatives: null,
   chosenAlternative: null,
   createdAt: new Date("2024-01-15"),
-  // Achievement fields (same row is returned for both table queries in mocks)
   title: "First Step",
   description: "Log your first carbon estimate",
   icon: "Footprints",
@@ -37,7 +35,6 @@ const MOCK_PROFILE = {
   updatedAt: new Date("2024-01-15"),
 };
 
-// Row that satisfies all DB queries (aggregation + table data + entry data)
 const MOCK_AGG_ROW = {
   total: 5,
   totalCo2Kg: 10.5,
@@ -47,11 +44,10 @@ const MOCK_AGG_ROW = {
   category: "Transport",
   co2Kg: 3.2,
   count: 2,
-  // Needs to be a real Date so .toISOString() works in achievement streak calc
   createdAt: new Date("2024-01-15"),
 };
 
-// ─── DB mock ─────────────────────────────────────────────────────────────────
+// ─── DB mock ──────────────────────────────────────────────────────────────────
 
 type ResolveFn = (v: unknown[]) => unknown;
 type RejectFn = (e: unknown) => unknown;
@@ -79,7 +75,49 @@ vi.mock("@workspace/db", () => ({
   achievementsTable: { id: {} },
 }));
 
+// ─── OpenAI mock ──────────────────────────────────────────────────────────────
+
+const AI_MOCK_RESPONSE = {
+  category: "General",
+  co2Kg: 12.5,
+  explanation: "AI-generated estimate for this novel action based on lifecycle analysis.",
+  confidenceScore: 0.72,
+  factors: ["Energy use (60%)", "Production (30%)", "Logistics (10%)"],
+  alternatives: [
+    {
+      label: "Greener alternative",
+      co2Kg: 3.5,
+      reductionPercent: 72,
+      extraTimeMinutes: null,
+      moneySavedUsd: 15,
+      description: "Lower-impact option",
+    },
+  ],
+};
+
+const mockCreate = vi.fn();
+
+vi.mock("openai", () => ({
+  default: vi.fn().mockImplementation(() => ({
+    chat: {
+      completions: {
+        create: mockCreate,
+      },
+    },
+  })),
+}));
+
 import app from "../app.js";
+
+beforeEach(() => {
+  mockCreate.mockReset();
+  // Default: AI not called (OPENAI_API_KEY absent in test env)
+  delete process.env.OPENAI_API_KEY;
+});
+
+afterEach(() => {
+  delete process.env.OPENAI_API_KEY;
+});
 
 // ─── Health ───────────────────────────────────────────────────────────────────
 
@@ -91,10 +129,10 @@ describe("GET /api/healthz", () => {
   });
 });
 
-// ─── Carbon estimate (no DB) ─────────────────────────────────────────────────
+// ─── Carbon estimate — keyword matching ───────────────────────────────────────
 
-describe("POST /api/carbon/estimate", () => {
-  it("returns 200 with full estimate shape for valid query", async () => {
+describe("POST /api/carbon/estimate — keyword matching", () => {
+  it("returns 200 with full estimate shape for a driving query", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "drive 20 miles to work" });
@@ -110,7 +148,7 @@ describe("POST /api/carbon/estimate", () => {
     expect(Array.isArray(res.body.alternatives)).toBe(true);
   });
 
-  it("returns correct category for flight query", async () => {
+  it("identifies flight category correctly", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "flight from London to New York" });
@@ -119,31 +157,32 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.body.co2Kg).toBeGreaterThan(0);
   });
 
-  it("returns estimate for food query", async () => {
+  it("identifies food category for beef query", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "eat a beef burger for lunch" });
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty("co2Kg");
+    expect(res.body.category.toLowerCase()).toBe("food");
   });
 
-  it("returns estimate for streaming query", async () => {
+  it("identifies streaming category", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "stream Netflix for 2 hours" });
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("co2Kg");
+    expect(res.body.category.toLowerCase()).toBe("streaming");
   });
 
-  it("returns estimate for hotel query", async () => {
+  it("identifies hotel category", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "stay in a hotel for 2 nights" });
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty("co2Kg");
+    expect(res.body.category.toLowerCase()).toBe("hotel");
   });
 
-  it("handles full sentence query correctly", async () => {
+  it("handles full sentence flight query", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "I am planning to fly from New York to London next week" });
@@ -151,7 +190,7 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.body.category.toLowerCase()).toBe("flight");
   });
 
-  it("handles driving sentence query correctly", async () => {
+  it("handles driving sentence query", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "I drive to work every day, about 20 miles each way" });
@@ -159,7 +198,7 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.body.category.toLowerCase()).toBe("transport");
   });
 
-  it("handles train sentence query correctly", async () => {
+  it("handles train sentence query", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "planning to take the train from London to Edinburgh" });
@@ -167,7 +206,7 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.body.category.toLowerCase()).toBe("transport");
   });
 
-  it("handles cycling sentence query correctly", async () => {
+  it("handles cycling sentence query", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "cycling to work every morning, about 5 miles" });
@@ -175,7 +214,7 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.body.category.toLowerCase()).toBe("transport");
   });
 
-  it("handles food sentence query correctly", async () => {
+  it("handles food delivery sentence", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "ordering food delivery for dinner tonight" });
@@ -185,41 +224,9 @@ describe("POST /api/carbon/estimate", () => {
 
   it("echoes the full sentence in the action field", async () => {
     const query = "I want to fly from Paris to Tokyo next summer";
-    const res = await request(app)
-      .post("/api/carbon/estimate")
-      .send({ query });
+    const res = await request(app).post("/api/carbon/estimate").send({ query });
     expect(res.status).toBe(200);
     expect(res.body.action).toBe(query);
-  });
-
-  it("returns 400 when query is missing", async () => {
-    const res = await request(app)
-      .post("/api/carbon/estimate")
-      .send({});
-    expect(res.status).toBe(400);
-    expect(res.body).toHaveProperty("error");
-  });
-
-  it("returns 400 when query is empty string", async () => {
-    const res = await request(app)
-      .post("/api/carbon/estimate")
-      .send({ query: "" });
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 400 when query exceeds 500 characters", async () => {
-    const res = await request(app)
-      .post("/api/carbon/estimate")
-      .send({ query: "a".repeat(501) });
-    expect(res.status).toBe(400);
-  });
-
-  it("returns 400 for invalid JSON body", async () => {
-    const res = await request(app)
-      .post("/api/carbon/estimate")
-      .set("Content-Type", "application/json")
-      .send("not-json");
-    expect(res.status).toBe(400);
   });
 
   it("alternatives have required shape", async () => {
@@ -251,6 +258,162 @@ describe("POST /api/carbon/estimate", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.factors)).toBe(true);
     expect(res.body.factors.length).toBeGreaterThan(0);
+  });
+
+  it("handles mixed-case input correctly", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "DRIVE to work" });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("transport");
+  });
+
+  it("handles query with punctuation", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "I'm flying to Paris! Excited." });
+    expect(res.status).toBe(200);
+    expect(res.body.category.toLowerCase()).toBe("flight");
+  });
+});
+
+// ─── Carbon estimate — AI fallback ───────────────────────────────────────────
+
+describe("POST /api/carbon/estimate — AI fallback", () => {
+  it("uses AI when query has no keyword match and OPENAI_API_KEY is set", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    mockCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: JSON.stringify(AI_MOCK_RESPONSE) } }],
+    });
+
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "building a data center in the desert" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("co2Kg");
+    expect(res.body).toHaveProperty("alternatives");
+    expect(res.body.action).toBe("building a data center in the desert");
+  });
+
+  it("returns AI response with correct shape fields", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    mockCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: JSON.stringify(AI_MOCK_RESPONSE) } }],
+    });
+
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "manufacturing a solar panel from scratch" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("category");
+    expect(res.body).toHaveProperty("explanation");
+    expect(res.body).toHaveProperty("factors");
+    expect(Array.isArray(res.body.factors)).toBe(true);
+    expect(Array.isArray(res.body.alternatives)).toBe(true);
+  });
+
+  it("falls back to generic estimate when AI key is absent", async () => {
+    // No OPENAI_API_KEY set
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "building a data center in the desert" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("co2Kg");
+    expect(res.body.category).toBe("General");
+  });
+
+  it("falls back to generic estimate when AI call fails", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    mockCreate.mockRejectedValueOnce(new Error("API rate limit"));
+
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "building a data center in the desert" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("co2Kg");
+    expect(res.body.category).toBe("General");
+  });
+
+  it("does NOT call AI when keyword match is found", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-key";
+
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "flight from London to Paris" });
+
+    expect(res.status).toBe(200);
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(res.body.category.toLowerCase()).toBe("flight");
+  });
+
+  it("AI response preserves query in action field", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    mockCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: JSON.stringify(AI_MOCK_RESPONSE) } }],
+    });
+
+    const query = "running a cement factory for one hour";
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query });
+
+    expect(res.status).toBe(200);
+    expect(res.body.action).toBe(query);
+  });
+
+  it("AI confidenceScore is clamped between 0.5 and 0.92", async () => {
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    mockCreate.mockResolvedValueOnce({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ ...AI_MOCK_RESPONSE, confidenceScore: 0.99 }),
+          },
+        },
+      ],
+    });
+
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "running a crypto mining rig all night" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.confidenceScore).toBeLessThanOrEqual(0.92);
+    expect(res.body.confidenceScore).toBeGreaterThanOrEqual(0.5);
+  });
+});
+
+// ─── Carbon estimate — validation ────────────────────────────────────────────
+
+describe("POST /api/carbon/estimate — validation", () => {
+  it("returns 400 when query is missing", async () => {
+    const res = await request(app).post("/api/carbon/estimate").send({});
+    expect(res.status).toBe(400);
+    expect(res.body).toHaveProperty("error");
+  });
+
+  it("returns 400 when query is empty string", async () => {
+    const res = await request(app).post("/api/carbon/estimate").send({ query: "" });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when query exceeds 500 characters", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .send({ query: "a".repeat(501) });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for invalid JSON body", async () => {
+    const res = await request(app)
+      .post("/api/carbon/estimate")
+      .set("Content-Type", "application/json")
+      .send("not-json");
+    expect(res.status).toBe(400);
   });
 });
 
@@ -311,9 +474,7 @@ describe("POST /api/carbon/entries", () => {
   });
 
   it("returns 400 for missing required fields", async () => {
-    const res = await request(app)
-      .post("/api/carbon/entries")
-      .send({ action: "test" });
+    const res = await request(app).post("/api/carbon/entries").send({ action: "test" });
     expect(res.status).toBe(400);
   });
 
@@ -509,7 +670,6 @@ describe("Security headers", () => {
 
   it("includes Referrer-Policy header", async () => {
     const res = await request(app).get("/api/healthz");
-    expect(res.headers["referrer-policy"]).toBeDefined();
     expect(res.headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   });
 
@@ -522,9 +682,14 @@ describe("Security headers", () => {
     const res = await request(app).get("/api/healthz");
     expect(res.headers["cross-origin-opener-policy"]).toBeDefined();
   });
+
+  it("does not expose server version header", async () => {
+    const res = await request(app).get("/api/healthz");
+    expect(res.headers["x-powered-by"]).toBeUndefined();
+  });
 });
 
-// ─── Error handling ────────────────────────────────────────────────────────────
+// ─── Error handling ───────────────────────────────────────────────────────────
 
 describe("Error handling", () => {
   it("returns 404 for unknown API routes", async () => {
@@ -538,7 +703,7 @@ describe("Error handling", () => {
     expect(res.status).toBe(404);
   });
 
-  it("rejects oversized payload with 413", async () => {
+  it("rejects oversized payload", async () => {
     const res = await request(app)
       .post("/api/carbon/estimate")
       .send({ query: "a".repeat(200), extra: "x".repeat(1024 * 101) });
@@ -549,5 +714,39 @@ describe("Error handling", () => {
     const res = await request(app).get("/api/totally-unknown-route");
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("rejects PATCH method on estimate endpoint", async () => {
+    const res = await request(app).patch("/api/carbon/estimate").send({});
+    expect([404, 405]).toContain(res.status);
+  });
+});
+
+// ─── Carbon engine unit tests ─────────────────────────────────────────────────
+
+describe("estimateCarbonWithScore — unit", () => {
+  it("returns keywordScore > 0 for a flight query", async () => {
+    const { estimateCarbonWithScore } = await import("../lib/carbon-engine.js");
+    const { keywordScore } = estimateCarbonWithScore("fly from London to Paris");
+    expect(keywordScore).toBeGreaterThan(0);
+  });
+
+  it("returns keywordScore 0 for a completely novel query", async () => {
+    const { estimateCarbonWithScore } = await import("../lib/carbon-engine.js");
+    const { keywordScore } = estimateCarbonWithScore("building a quantum computer chip factory");
+    expect(keywordScore).toBe(0);
+  });
+
+  it("returns category General for a novel query fallback", async () => {
+    const { estimateCarbonWithScore } = await import("../lib/carbon-engine.js");
+    const { result } = estimateCarbonWithScore("zyzzy random unknown action xyz");
+    expect(result.category).toBe("General");
+  });
+
+  it("echoes the query in the action field", async () => {
+    const { estimateCarbonWithScore } = await import("../lib/carbon-engine.js");
+    const query = "watching a movie on Netflix";
+    const { result } = estimateCarbonWithScore(query);
+    expect(result.action).toBe(query);
   });
 });

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, carbonEntriesTable } from "@workspace/db";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import {
   EstimateCarbonBody,
   ListCarbonEntriesQueryParams,
@@ -9,7 +9,8 @@ import {
   GetCarbonEntryParams,
   DeleteCarbonEntryParams,
 } from "@workspace/api-zod";
-import { estimateCarbon } from "../lib/carbon-engine";
+import { estimateCarbonWithScore } from "../lib/carbon-engine.js";
+import { estimateCarbonWithAI } from "../lib/ai-estimator.js";
 
 const router: IRouter = Router();
 
@@ -20,7 +21,17 @@ router.post("/carbon/estimate", async (req, res): Promise<void> => {
     return;
   }
 
-  const result = estimateCarbon(parsed.data.query);
+  const { result, keywordScore } = estimateCarbonWithScore(parsed.data.query);
+
+  // No keyword match — try AI for a more accurate estimate
+  if (keywordScore === 0) {
+    const aiResult = await estimateCarbonWithAI(parsed.data.query);
+    if (aiResult) {
+      res.json(aiResult);
+      return;
+    }
+  }
+
   res.json(result);
 });
 
@@ -51,13 +62,6 @@ router.get("/carbon/entries", async (req, res): Promise<void> => {
   const limit = params.data.limit ?? 20;
   const offset = params.data.offset ?? 0;
 
-  let query = db
-    .select()
-    .from(carbonEntriesTable)
-    .orderBy(desc(carbonEntriesTable.createdAt))
-    .limit(limit)
-    .offset(offset);
-
   if (params.data.category) {
     const entries = await db
       .select()
@@ -70,7 +74,12 @@ router.get("/carbon/entries", async (req, res): Promise<void> => {
     return;
   }
 
-  const entries = await query;
+  const entries = await db
+    .select()
+    .from(carbonEntriesTable)
+    .orderBy(desc(carbonEntriesTable.createdAt))
+    .limit(limit)
+    .offset(offset);
   res.json(entries);
 });
 
@@ -81,11 +90,7 @@ router.post("/carbon/entries", async (req, res): Promise<void> => {
     return;
   }
 
-  const [entry] = await db
-    .insert(carbonEntriesTable)
-    .values(parsed.data)
-    .returning();
-
+  const [entry] = await db.insert(carbonEntriesTable).values(parsed.data).returning();
   res.status(201).json(entry);
 });
 
@@ -136,13 +141,11 @@ router.get("/carbon/stats", async (_req, res): Promise<void> => {
   const savedCo2Kg = rows.reduce((s, r) => s + (r.savedCo2Kg ?? 0), 0);
   const totalEntries = rows.length;
 
-  // Equivalents
-  const treesEquivalent = parseFloat((savedCo2Kg / 21.77).toFixed(2)); // avg tree absorbs 21.77 kg/yr
-  const phonesCharged = parseFloat((savedCo2Kg / 0.00822).toFixed(0)); // 8.22 g CO₂ per charge
-  const homesEquivalent = parseFloat((savedCo2Kg / 7650).toFixed(4)); // avg US home 7650 kg/yr
-  const moneySavedUsd = parseFloat((savedCo2Kg * 0.15).toFixed(2)); // rough carbon price proxy
+  const treesEquivalent = parseFloat((savedCo2Kg / 21.77).toFixed(2));
+  const phonesCharged = parseFloat((savedCo2Kg / 0.00822).toFixed(0));
+  const homesEquivalent = parseFloat((savedCo2Kg / 7650).toFixed(4));
+  const moneySavedUsd = parseFloat((savedCo2Kg * 0.15).toFixed(2));
 
-  // Calculate streak
   const sortedDates = rows
     .map((r) => r.createdAt.toISOString().split("T")[0])
     .filter((v, i, a) => a.indexOf(v) === i)
